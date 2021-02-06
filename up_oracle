@@ -1,0 +1,42 @@
+# You can use this code
+# in case you want to update an oracle database by fx_created.xlsx
+
+
+import cx_Oracle
+import pandas as pd
+
+fx_data = pd.read_excel("fx_created.xlsx")
+fx_insert = fx_data.drop(['CC','RATE'],axis=1)
+
+
+dsn = cx_Oracle.makedsn(host="address",port=port,service_name="service")
+db = cx_Oracle.connect("user","pwd",dsn)
+cursor = db.cursor()
+
+# get last index from database
+sql = "SELECT OBS FROM TABLE_NAME WHERE id=(SELECT max(id) FROM TABLE_NAME)"
+cursor.execute(sql)
+lastObs = cursor.fetchall()[0][0]
+
+newObs = lastObs + 1
+
+for i in range(len(fx_insert.columns)):
+    iDate = fx_insert.columns[i]
+    print("Inserting ", iDate)
+
+    # check if data exists on that date
+    query = "select * from TABLE_NAME where date = date " + "'" + iDate + "'"
+    cursor.execute(query)
+    lastObs = cursor.fetchall()
+
+    if lastObs != []:
+        print("Reference rate is already in the database!. Moving to next.")
+        continue
+    else:
+        query = "insert into TABLE_NAME (ID,DATE," + \
+            ','.join(fx_data['CC'].to_list()) + ")" + \
+            " values (" + str(newObs) + "," + "date '" + iDate + "'" + "," + \
+            ','.join(fx_insert[iDate].astype(str).to_list()) + ")"
+        cursor.execute(query)
+        db.commit()
+        newObs += 1
